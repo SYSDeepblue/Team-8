@@ -1,0 +1,121 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(reticulate)
+library(readr)
+library(dplyr)
+library(stringr)
+library(fastDummies)
+library(ggplot2)
+library(Metrics)
+
+zieltag <- as.Date("01.06.2019","%d.%m.%Y")
+
+#usd_g <- read_csv("umsatzdaten_gekuerzt.csv")
+datensatz <- read_csv("datensatz.csv")
+ds_neu <- read_csv("ds_neu.csv")
+kiwo <- read_csv("kiwo.csv")
+ds_neu$Wochentag <- weekdays(ds_neu$Datum)
+ds_neu[is.element(ds_neu$Datum,kiwo$Datum),]$KielerWoche <- TRUE
+ds_neu[is.na(ds_neu$KielerWoche),]$KielerWoche <- FALSE
+
+ds_neu <- ds_neu[ds_neu$Datum>=as.Date("01.07.2013","%d.%m.%Y"),]
+ds_neu <- ds_neu[ds_neu$Datum<=zieltag,]
+ds_ord <- ds_neu[order(ds_neu$Datum),]
+ds_ord$X1 <- seq(length(ds_ord$Datum))
+ds_ord[is.na(ds_ord$Feiertag),]$Feiertag <- FALSE
+
+df_lna <- function(x) { x[rowSums(is.na.data.frame(x))>0,] }
+
+df_lna(ds_ord)
+
+```
+
+```{r}
+wg_nas <- ds_ord$X1[is.na(ds_ord$Warengruppe)]
+ds_dum <- ds_ord[-wg_nas,]
+for(i in wg_nas)
+{
+  dsi <-ds_ord[i,]
+  dsi$Umsatz <- 0
+  for(j in seq(6))
+  {
+    dsi$Warengruppe <- j
+    ds_dum <- rbind(ds_dum, dsi)
+  }
+}
+ds_fin <- ds_dum[order(ds_dum$Datum),]
+
+df_lna(ds_fin)
+ds_fin[is.na(ds_fin$KielerWoche),]
+ds_fin$X1 <- seq(length(ds_fin$Datum))
+
+#write_csv(ds_fin, "datensatz_final_alt.csv")
+```
+
+```{r}
+
+ds_fin <- read_csv("datensatz_final.csv")
+
+dats <- unique(ds_fin$Datum)
+
+wgsix <- array(FALSE,dim=length(dats))
+for(i in seq(length(dats)))
+{
+  if(is.element(6,ds_fin[ds_fin$Datum==dats[i],]$Warengruppe))
+  {
+    wgsix[i] <- TRUE
+  }
+}
+wgsixmiss <- !wgsix
+any(wgsixmiss)
+
+wgfour <- array(FALSE,dim=length(dats))
+for(i in seq(length(dats)))
+{
+  if(is.element(4,ds_fin[ds_fin$Datum==dats[i],]$Warengruppe))
+  {
+    wgfour[i] <- TRUE
+  }
+}
+wgfourmiss <- !wgfour
+any(wgfourmiss)
+
+ds_fff <- ds_fin
+for(d in dats[wgsixmiss])
+  {
+    dsi <-ds_fin[ds_fin$Datum==d,][1,]
+    dsi$Umsatz <- 0
+    dsi$Warengruppe <- 6
+    ds_fff <- rbind(ds_fff, dsi)
+  }
+for(d in dats[wgfourmiss])
+  {
+    dsi <-ds_fin[ds_fin$Datum==d,][1,]
+    dsi$Umsatz <- 0
+    dsi$Warengruppe <- 4
+    ds_fff <- rbind(ds_fff, dsi)
+  }
+ds_fff <- ds_fff[order(ds_fff$Datum, ds_fff$Warengruppe),]
+
+
+wgmiss <- array(FALSE,dim=length(dats))
+for(i in seq(length(dats)))
+{
+  if(6!=length(ds_fff[ds_fff$Datum==dats[i],]$Warengruppe))
+  {
+    wgmiss[i] <- TRUE
+  }
+}
+ds_fff[is.element(ds_fff$Datum,dats[wgmiss]),]
+
+
+
+#write_csv(ds_fff, "datensatz_final.csv")
+
+
+```
