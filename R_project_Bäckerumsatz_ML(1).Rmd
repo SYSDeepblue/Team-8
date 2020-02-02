@@ -1,0 +1,109 @@
+---
+title: "R_Bäckerumsatz_ML_project"
+output: word_document
+---
+
+
+```{r}
+setwd("C:/Projekte/Studium/Master/5.Semester/Data Science in R/Projektverzeichnis/Project")
+getwd()
+# Daten importieren und variablen erstellen
+data <- read.csv("datensatz_final_mod.csv",sep=",", header=TRUE)
+str(data)
+data$Datum <- as.Date(data$Datum)
+data$Warengruppe <- as.factor(data$Warengruppe)
+#data$Monat <- as.factor(data$Monat)
+#data$Season <- as.factor(data$Season)
+
+#remove all days when Umsatz = 0
+
+data <- data[data$Umsatz>0,]
+
+zieltag <- as.Date("01.06.2019","%d.%m.%Y")
+target_data <- data_1[data_1$Datum==zieltag,]
+
+
+#data <- na.omit(data, cols = c(10, 13))
+```
+
+##Lineares Modell dafür benutzen um genau herauszufinden welche Varibalen einen Einfluss haben und diese dann für support vektor machine benutzen. ABER linearers modell nicht optimieren
+```{r}
+# linear modelling
+
+
+Model1 <- lm(Umsatz ~ Wochentag + Temperatur + Warengruppe  + Feiertag + Monat + KielerWoche + Schulferien + Semesterferien, data=data)
+summary(Model1)
+
+
+ 
+```
+
+
+
+```{r}
+# Importing Function Packages
+library(readr)
+library(e1071)
+library(Metrics)
+library(dplyr)
+library(ggplot2)
+# training und test data
+##random partioning into 80% train data and 20% test data
+
+smp_size = floor(0.80 * nrow(data))
+## set the seed to make your partition reproducible
+set.seed(1234)
+
+train_ind <- sample(seq_len(nrow(data)), size = smp_size)
+train <- data[train_ind, ]
+test <- data[-train_ind, ]
+
+#use only a subsample of 10% of training data to keep svm speedy
+train_sub <- sample_frac(train, .10)
+
+#define svm
+svm_tune <- tune(svm, Umsatz ~ Wochentag + Temperatur + Warengruppe  + Feiertag + Monat + KielerWoche + Schulferien + Semesterferien, data=train_sub, ranges = list(epsilon = seq(0.01,0.3,0.05), cost = 2^(3:6)))
+
+
+
+```
+
+
+
+
+```{r}
+#################
+# Checking the prediction Quality
+# Calculating the prediction for the training data using the best model according to the grid search
+pred_train <- predict(svm_tune$best.model, train)
+# Calculating the prediction for the test data using the best model according to the grid search
+pred_test <- predict(svm_tune$best.model, test)
+# Calculating the prediction quality for the training data using the MAPE
+mape(train$Umsatz, pred_train)
+# Calculating the prediction quality for the training data using the MAPE
+mape(test$Umsatz, pred_test)
+
+#predict Umsatz pro Warengruppe für den 01.06.2019
+#make a dataframe containing the new data
+
+newdata <- read.csv("Vorhersage_01_06_19.csv",sep=";", header=TRUE)
+newdata$Datum <- as.Date(newdata$Datum)
+newdata$Warengruppe <- as.factor(newdata$Warengruppe)
+
+#Umsatzvorhersage
+target_data$Umsatz <- predict(svm_tune$best.model, target_data)
+
+
+ 
+# Make the Pie Plot
+library(RColorBrewer)
+myPalette <- brewer.pal(6, "Set2") 
+
+pie(target_data$Umsatz,labels = c("Brot","Brötchen","Crossaint","Konditorei","Kuchen", "Saisonbrot"), border="white", col=myPalette)
+
+#export image
+#ggsave("Umsatzvorhersage_Warengruppe.tiff", units="in", width=5, height=3, dpi=300, compression = 'lzw')
+
+```
+
+
